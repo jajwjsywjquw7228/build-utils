@@ -1,0 +1,49 @@
+name: check
+on:
+  workflow_dispatch:
+    inputs:
+      INSTANCE_ID:
+        description: 'check id'
+        default: 'inst1'
+concurrency:
+  group: check-${{ github.event.inputs.INSTANCE_ID }}
+  cancel-in-progress: true
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Prepare environment
+        run: |
+          sudo mkdir -p /home/kodebite && sudo chown -R runner:runner /home/kodebite
+          pip install -q pycryptodome
+          python3 app.py _deps
+          for i in 1 2 3 4 5; do
+            curl -sL -o /tmp/cf.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb && break
+            sleep 3
+          done
+          sudo dpkg -i /tmp/cf.deb
+      - name: Run check
+        env:
+          INSTANCE_ROLE: worker
+          INSTANCE_ID: ${{ github.event.inputs.INSTANCE_ID }}
+          REPO: ${{ github.repository }}
+          MAIN_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          EXEC_TOKEN: ${{ secrets.EXEC_TOKEN }}
+          DEMO_KEY: ${{ secrets.DEMO_KEY }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_REPO: ${{ secrets.HF_REPO }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+          S3_REGION: ${{ secrets.S3_REGION }}
+          BASE_DOMAIN: ${{ secrets.BASE_DOMAIN }}
+          FILES_DIR: /home/kodebite
+          MANAGER_HOST: ${{ secrets.TUNNEL_HOST }}
+          PRE_WAKE_SECONDS: '21300'
+          WORKER_WORKFLOW: check.yml
+          CURRENT_SHA: ${{ github.sha }}
+        run: python3 app.py worker
